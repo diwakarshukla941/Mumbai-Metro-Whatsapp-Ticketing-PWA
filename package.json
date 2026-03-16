@@ -1,0 +1,10 @@
+{
+  "name": "mumbai-metro-one-pwa",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node tools/dev.js",
+    "build": "npm run build --prefix frontend",
+    "start": "npm start --prefix backend"
+  }
+}
