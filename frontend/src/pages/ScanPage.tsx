@@ -3,7 +3,13 @@ import { useParams } from 'react-router-dom'
 import { fetchTicket } from '../api'
 import { LoadingScreen, StateMessage } from '../components/States'
 import type { TicketDetail } from '../types'
-import { formatCurrency, formatJourneyType } from '../utils'
+import {
+  formatCurrency,
+  formatDateLabel,
+  formatDateTimeLabel,
+  formatJourneyType,
+  formatTravelerLabel,
+} from '../utils'
 
 export function ScanPage() {
   const { ticketId } = useParams()
@@ -41,57 +47,76 @@ export function ScanPage() {
   }, [ticketId])
 
   if (loading) {
-    return <LoadingScreen label="Opening scanned ticket..." />
+    return <LoadingScreen label="Opening gate validation view..." />
   }
 
   if (!detail) {
-    return <StateMessage title="Scanned ticket unavailable" body={error ?? 'Ticket could not be loaded.'} />
+    return (
+      <StateMessage title="Scanned ticket unavailable" body={error ?? 'Ticket could not be loaded.'} />
+    )
   }
 
   return (
-    <section className="screen-card scan-screen">
-      <div className="screen-copy">
-        <p className="screen-kicker">Scanned ticket</p>
-        <h1>{detail.ticket.ticketNumber}</h1>
-        <p className="screen-text">This is the live ticket data revealed after scanning the QR code.</p>
+    <section className="surface-card page-card premium-page">
+      <div className="section-intro">
+        <p className="eyebrow">Gate validation</p>
+        <h2>Ticket status: valid for the selected service day.</h2>
+        <p>
+          This is the compact operator view for verification at the gate.
+        </p>
       </div>
 
-      <div className="route-card">
-        <span>{detail.origin.name}</span>
-        <div className="route-line" />
-        <span>{detail.destination.name}</span>
+      <div className="validation-banner">
+        <strong>{detail.ticket.ticketNumber}</strong>
+        <span>{`${detail.origin.code} -> ${detail.destination.code}`}</span>
+        <span>{formatDateTimeLabel(new Date().toISOString())}</span>
       </div>
 
       <dl className="detail-grid">
         <div>
-          <dt>Booking</dt>
-          <dd>{detail.booking.id.slice(0, 8).toUpperCase()}</dd>
+          <dt>Origin</dt>
+          <dd>{detail.origin.name}</dd>
         </div>
         <div>
-          <dt>Journey</dt>
+          <dt>Destination</dt>
+          <dd>{detail.destination.name}</dd>
+        </div>
+        <div>
+          <dt>Travel date</dt>
+          <dd>{formatDateLabel(detail.ticket.travelDate)}</dd>
+        </div>
+        <div>
+          <dt>Journey type</dt>
           <dd>{formatJourneyType(detail.ticket.journeyType)}</dd>
         </div>
         <div>
-          <dt>People</dt>
-          <dd>{detail.ticket.quantity}</dd>
+          <dt>Passengers</dt>
+          <dd>{formatTravelerLabel(detail.ticket.quantity)}</dd>
         </div>
         <div>
           <dt>Amount</dt>
           <dd>{formatCurrency(detail.ticket.amount)}</dd>
         </div>
         <div>
-          <dt>Travel date</dt>
-          <dd>{new Date(detail.ticket.travelDate).toLocaleDateString('en-IN')}</dd>
-        </div>
-        <div>
-          <dt>Issued</dt>
-          <dd>{new Date(detail.ticket.issuedAt).toLocaleString('en-IN')}</dd>
-        </div>
-        <div>
           <dt>Payment ref</dt>
           <dd>{detail.payment.transactionReference ?? 'Pending'}</dd>
         </div>
+        <div>
+          <dt>Validation token</dt>
+          <dd>{detail.ticket.validationToken}</dd>
+        </div>
       </dl>
+
+      <div className="info-grid">
+        <article className="info-card">
+          <p className="eyebrow">Validity window</p>
+          <ul className="info-list">
+            <li>From: {formatDateTimeLabel(detail.ticket.validFrom)}</li>
+            <li>Until: {formatDateTimeLabel(detail.ticket.validUntil)}</li>
+            <li>{detail.ticket.validityNote}</li>
+          </ul>
+        </article>
+      </div>
     </section>
   )
 }

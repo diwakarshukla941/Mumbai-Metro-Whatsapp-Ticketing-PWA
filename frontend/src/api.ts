@@ -19,7 +19,15 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   })
 
-  const payload = (await response.json()) as JsonRecord
+  const contentType = response.headers.get('content-type') ?? ''
+  let payload: JsonRecord = {}
+
+  if (contentType.includes('application/json')) {
+    payload = (await response.json()) as JsonRecord
+  } else {
+    const text = await response.text()
+    payload = text ? ({ message: text } as JsonRecord) : {}
+  }
 
   if (!response.ok) {
     throw new Error(String(payload.message ?? 'Request failed.'))
@@ -54,6 +62,7 @@ export function createBooking(input: {
   toStationId: string
   journeyType: JourneyType
   quantity: number
+  travelDate: string
 }) {
   return request<{
     booking: BookingDetail['booking']

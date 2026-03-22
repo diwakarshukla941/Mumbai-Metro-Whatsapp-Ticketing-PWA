@@ -41,31 +41,41 @@ export function PendingPage() {
   }, [bookingId])
 
   if (loading) {
-    return <LoadingScreen label="Checking pending payment..." />
+    return <LoadingScreen label="Checking payment status..." />
   }
 
   if (!detail) {
-    return <StateMessage title="Pending status unavailable" body={error ?? 'Booking could not be loaded.'} />
+    return (
+      <StateMessage title="Pending status unavailable" body={error ?? 'Booking could not be loaded.'} />
+    )
   }
 
   return (
-    <section className="screen-card status-screen status-pending">
-      <p className="screen-kicker">Payment pending</p>
-      <h1>We have not marked this payment as complete yet.</h1>
-      <p className="screen-text">
-        The dummy gateway returned a pending status for {detail.origin.name} to{' '}
-        {detail.destination.name}.
-      </p>
-      <div className="summary-panel">
-        <strong>{formatCurrency(detail.booking.fare.totalFare)}</strong>
-        <p>Retry payment or start a fresh booking.</p>
+    <section className="surface-card page-card">
+      <div className="section-intro">
+        <p className="eyebrow">Payment pending</p>
+        <h2>The payment has not been marked complete yet.</h2>
+        <p>
+          Retry the transaction or return to booking if the passenger needs a new trip setup.
+        </p>
       </div>
-      <div className="screen-actions">
+
+      <div className="summary-grid">
+        <article className="info-card emphasis-card">
+          <p className="eyebrow">Pending amount</p>
+          <strong>{formatCurrency(detail.booking.fare.totalFare)}</strong>
+          <p>
+            {detail.origin.name} to {detail.destination.name}
+          </p>
+        </article>
+      </div>
+
+      <div className="action-row dual-actions">
         <Link className="secondary-button" to={`/payment/${detail.booking.id}`}>
           Retry payment
         </Link>
         <Link className="primary-button" to="/">
-          New booking
+          Start over
         </Link>
       </div>
     </section>

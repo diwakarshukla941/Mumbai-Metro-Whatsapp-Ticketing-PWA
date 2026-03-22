@@ -2,28 +2,31 @@ import { Link } from 'react-router-dom'
 
 export function LoadingScreen({ label }: { label: string }) {
   return (
-    <div className="state-panel">
-      <div className="loader-scene" aria-hidden="true">
-        <div className="loader-track" />
-        <div className="loader-train">
+    <div className="status-shell">
+      <div className="status-card">
+        <div className="loader-mark" aria-hidden="true">
           <span />
           <span />
           <span />
         </div>
+        <p className="eyebrow">Loading</p>
+        <h2>{label}</h2>
       </div>
-      <p>{label}</p>
     </div>
   )
 }
 
 export function StateMessage({ title, body }: { title: string; body: string }) {
   return (
-    <div className="state-panel">
-      <h2>{title}</h2>
-      <p>{body}</p>
-      <Link className="secondary-button" to="/">
-        Back to booking
-      </Link>
+    <div className="status-shell">
+      <div className="status-card">
+        <p className="eyebrow">Attention</p>
+        <h2>{title}</h2>
+        <p>{body}</p>
+        <Link className="secondary-button" to="/">
+          Back to booking
+        </Link>
+      </div>
     </div>
   )
 }

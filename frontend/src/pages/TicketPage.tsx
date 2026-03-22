@@ -51,65 +51,63 @@ export function TicketPage() {
   const scanHref = detail.ticket.scanUrl || `/scan/${detail.ticket.id}`
 
   return (
-    <section className="screen-card ticket-screen">
-      <div className="confetti-cloud" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
-        <span />
-        <span />
+    <section className="surface-card page-card simple-page premium-page">
+      <div className="page-heading">
+        <span className="page-kicker">Ticket ready</span>
+        <h2>Your ticket</h2>
+        <p>Keep this QR ready for scanning at the gate.</p>
       </div>
 
-      <div className="screen-copy">
-        <p className="screen-kicker">Payment successful</p>
-        <h1>Ticket party unlocked.</h1>
-        <p className="screen-text">
-          Your QR is live. Scan it to open the ticket details page with your journey info.
-        </p>
-      </div>
-
-      <div className="ticket-shell">
-        <div className="ticket-topline">
+      <div className="ticket-card luxury-ticket">
+        <div className="ticket-ribbon" aria-hidden="true" />
+        <div className="ticket-topbar">
           <span>{detail.ticket.ticketNumber}</span>
           <span>Paid</span>
         </div>
 
-        <div className="ticket-route">
-          <strong>{detail.origin.name}</strong>
-          <div className="route-line" />
-          <strong>{detail.destination.name}</strong>
+        <div className="route-hero ticket-route-hero">
+          <div className="route-station">
+            <span className="field-label">From</span>
+            <strong>{detail.origin.name}</strong>
+          </div>
+          <div className="route-connector" aria-hidden="true" />
+          <div className="route-station">
+            <span className="field-label">To</span>
+            <strong>{detail.destination.name}</strong>
+          </div>
         </div>
 
-        <div className="qr-box">
-          <img src={detail.ticket.qrCodeDataUrl} alt="Mumbai Metro One ticket QR" />
-        </div>
+        <div className="ticket-grid">
+          <div className="summary-card premium-summary-card">
+            <div className="summary-row">
+              <span>Journey type</span>
+              <strong>{formatJourneyType(detail.ticket.journeyType)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>Persons</span>
+              <strong>{detail.ticket.quantity}</strong>
+            </div>
+            <div className="summary-row">
+              <span>Fare</span>
+              <strong>{formatCurrency(detail.ticket.amount)}</strong>
+            </div>
+          </div>
 
-        <dl className="detail-grid">
-          <div>
-            <dt>Journey</dt>
-            <dd>{formatJourneyType(detail.ticket.journeyType)}</dd>
+          <div className="qr-panel premium-qr-panel">
+            {detail.ticket.qrCodeDataUrl ? (
+              <img src={detail.ticket.qrCodeDataUrl} alt="Mumbai Metro One ticket QR" />
+            ) : (
+              <div className="qr-fallback">QR unavailable</div>
+            )}
           </div>
-          <div>
-            <dt>People</dt>
-            <dd>{detail.ticket.quantity}</dd>
-          </div>
-          <div>
-            <dt>Fare</dt>
-            <dd>{formatCurrency(detail.ticket.amount)}</dd>
-          </div>
-          <div>
-            <dt>Txn</dt>
-            <dd>{detail.payment.transactionReference}</dd>
-          </div>
-        </dl>
+        </div>
       </div>
 
-      <div className="screen-actions">
-        <a className="secondary-button" href={scanHref} target="_blank" rel="noreferrer">
-          Open scan result
+      <div className="action-row dual-actions">
+        <a className="secondary-button premium-secondary-button" href={scanHref} target="_blank" rel="noreferrer">
+          Open scan page
         </a>
-        <Link className="secondary-button" to="/">
+        <Link className="primary-button premium-primary-button" to="/">
           Book again
         </Link>
       </div>

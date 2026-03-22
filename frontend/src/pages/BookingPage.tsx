@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { createBooking, fetchFare } from '../api'
 import { StationTrail } from '../components/StationTrail'
 import type { Fare, JourneyType, MetaResponse } from '../types'
-import { formatCurrency, formatJourneyType } from '../utils'
+import { formatCurrency, formatJourneyType, todayAsInputValue } from '../utils'
 
 type BookingFormState = {
   fromStationId: string
@@ -34,7 +34,7 @@ export function BookingPage({ meta }: { meta: MetaResponse }) {
 
     if (formState.fromStationId === formState.toStationId) {
       setFare(null)
-      setError('Choose two different stations.')
+      setError('Source and destination should be different.')
       return
     }
 
@@ -82,7 +82,10 @@ export function BookingPage({ meta }: { meta: MetaResponse }) {
     setError(null)
 
     try {
-      const result = await createBooking(formState)
+      const result = await createBooking({
+        ...formState,
+        travelDate: todayAsInputValue(),
+      })
       startTransition(() => {
         navigate(`/summary/${result.booking.id}`)
       })
@@ -93,89 +96,102 @@ export function BookingPage({ meta }: { meta: MetaResponse }) {
     }
   }
 
+  const swapStations = () => {
+    setFormState((currentState) => ({
+      ...currentState,
+      fromStationId: currentState.toStationId,
+      toStationId: currentState.fromStationId,
+    }))
+  }
+
   return (
-    <section className="screen-card booking-screen">
-      <div className="screen-copy">
-        <p className="screen-kicker">Metro ride mode</p>
-        <h1>Pick your vibe, then your ride.</h1>
-        <p className="screen-text">
-          Fast booking, a visible station trail, and a much louder ticketing experience.
-        </p>
+    <section className="surface-card page-card simple-page premium-page">
+      <div className="page-heading">
+        <span className="page-kicker">Step 1</span>
+        <h2>Book your journey</h2>
+        <p>Select stations, choose ticket type, and review fare before payment.</p>
       </div>
 
-      <form className="mobile-form" onSubmit={onSubmit}>
-        <label className="field">
-          <span>Source</span>
-          <select
-            value={formState.fromStationId}
-            onChange={(event) =>
-              setFormState((currentState) => ({
-                ...currentState,
-                fromStationId: event.target.value,
-              }))
-            }
-          >
-            {meta.stations.map((station) => (
-              <option key={station.id} value={station.id}>
-                {station.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <form className="form-stack" onSubmit={onSubmit}>
+        <div className="simple-grid">
+          <label className="field-card premium-field-card">
+            <span className="field-label">Source</span>
+            <select
+              value={formState.fromStationId}
+              onChange={(event) =>
+                setFormState((currentState) => ({
+                  ...currentState,
+                  fromStationId: event.target.value,
+                }))
+              }
+            >
+              {meta.stations.map((station) => (
+                <option key={station.id} value={station.id}>
+                  {station.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-        <label className="field">
-          <span>Destination</span>
-          <select
-            value={formState.toStationId}
-            onChange={(event) =>
-              setFormState((currentState) => ({
-                ...currentState,
-                toStationId: event.target.value,
-              }))
-            }
-          >
-            {meta.stations.map((station) => (
-              <option key={station.id} value={station.id}>
-                {station.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="field">
-          <span>Journey type</span>
-          <div className="segmented-grid">
-            {(['sjt', 'rjt'] as JourneyType[]).map((journeyType) => (
-              <button
-                key={journeyType}
-                type="button"
-                className={`segment-button ${
-                  formState.journeyType === journeyType ? 'active' : ''
-                }`}
-                onClick={() =>
-                  setFormState((currentState) => ({
-                    ...currentState,
-                    journeyType,
-                  }))
-                }
-              >
-                <strong>{formatJourneyType(journeyType)}</strong>
-                <small>
-                  {journeyType === 'sjt' ? 'One way sprint' : 'Comeback combo'}
-                </small>
-              </button>
-            ))}
-          </div>
+          <label className="field-card premium-field-card">
+            <span className="field-label">Destination</span>
+            <select
+              value={formState.toStationId}
+              onChange={(event) =>
+                setFormState((currentState) => ({
+                  ...currentState,
+                  toStationId: event.target.value,
+                }))
+              }
+            >
+              {meta.stations.map((station) => (
+                <option key={station.id} value={station.id}>
+                  {station.name}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
-        <div className="field">
-          <span>People</span>
-          <div className="traveler-grid">
+        <button className="ghost-action premium-ghost-action" type="button" onClick={swapStations}>
+          Swap stations
+        </button>
+
+        <div className="choice-grid simple-choice-grid" role="radiogroup" aria-label="Journey type">
+          {(['sjt', 'rjt'] as JourneyType[]).map((journeyType) => (
+            <button
+              key={journeyType}
+              type="button"
+              role="radio"
+              aria-checked={formState.journeyType === journeyType}
+              className={`choice-card premium-choice-card ${
+                formState.journeyType === journeyType ? 'active' : ''
+              }`}
+              onClick={() =>
+                setFormState((currentState) => ({
+                  ...currentState,
+                  journeyType,
+                }))
+              }
+            >
+              <strong>{formatJourneyType(journeyType)}</strong>
+              <span>{journeyType === 'sjt' ? 'Single Journey' : 'Return Journey'}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="field-card premium-field-card">
+          <span className="field-label">Number of persons</span>
+          <div className="pill-row" role="radiogroup" aria-label="Passengers">
             {travelerOptions.map((count) => (
               <button
                 key={count}
                 type="button"
-                className={`traveler-pill ${formState.quantity === count ? 'active' : ''}`}
+                role="radio"
+                aria-checked={formState.quantity === count}
+                className={`select-pill premium-select-pill ${
+                  formState.quantity === count ? 'active' : ''
+                }`}
                 onClick={() =>
                   setFormState((currentState) => ({
                     ...currentState,
@@ -195,36 +211,28 @@ export function BookingPage({ meta }: { meta: MetaResponse }) {
           toStationId={formState.toStationId}
         />
 
-        <div className="fare-sheet">
-          <div className="fare-sheet-top">
-            <div>
-              <p className="screen-kicker">Estimated fare</p>
-              <strong>
-                {loadingFare
-                  ? 'Calculating...'
-                  : fare
-                    ? formatCurrency(fare.totalFare)
-                    : 'Select route'}
-              </strong>
-            </div>
-            {loadingFare && <div className="fare-loader" aria-hidden="true" />}
+        <div className="fare-card premium-fare-card" aria-live="polite">
+          <div>
+            <span className="field-label">Estimated fare</span>
+            <strong>
+              {loadingFare
+                ? 'Calculating...'
+                : fare
+                  ? formatCurrency(fare.totalFare)
+                  : 'Select route'}
+            </strong>
           </div>
-
-          <ul>
-            <li>{fare?.routeLabel ?? 'Route preview will appear here'}</li>
-            <li>{fare ? `${fare.journeyTypeLabel} for ${fare.quantity} people` : 'Max 6 people'}</li>
-            <li>
-              {fare
-                ? `${fare.distanceKm} km estimated`
-                : 'Fare updates instantly from the backend'}
-            </li>
-          </ul>
+          <p>
+            {fare
+              ? `${fare.routeLabel} / ${fare.quantity} person(s) / ${fare.journeyTypeLabel}`
+              : 'Choose route and journey type to see the fare.'}
+          </p>
         </div>
 
         {error && <p className="error-text">{error}</p>}
 
-        <button className="primary-button" type="submit" disabled={submitting || !fare}>
-          {submitting ? 'Preparing summary...' : 'Continue to summary'}
+        <button className="primary-button premium-primary-button" type="submit" disabled={submitting || !fare}>
+          {submitting ? 'Preparing summary...' : 'Continue'}
         </button>
       </form>
     </section>

@@ -77,7 +77,10 @@ export type Ticket = {
   amount: number
   qrPayload: string
   scanUrl?: string
-  qrCodeDataUrl: string
+  qrCodeDataUrl?: string
+  validFrom: string
+  validUntil: string
+  validationToken: string
   validityNote: string
   whatsappAssistUrl: string
 }

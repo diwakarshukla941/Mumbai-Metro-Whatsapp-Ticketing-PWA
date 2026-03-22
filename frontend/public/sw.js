@@ -1,9 +1,5 @@
-const CACHE_NAME = 'metro-one-pwa-v2'
-const APP_SHELL = [
-  '/manifest.webmanifest',
-  '/metro-icon.svg',
-  '/metro-icon-maskable.svg',
-]
+const CACHE_NAME = 'metro-one-pwa-v3'
+const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/metro-icon.svg', '/metro-icon-maskable.svg']
 
 function isSameOrigin(requestUrl) {
   return new URL(requestUrl).origin === self.location.origin
@@ -16,11 +12,9 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
-      ),
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+    ),
   )
   self.clients.claim()
 })
@@ -31,53 +25,38 @@ self.addEventListener('fetch', (event) => {
   }
 
   const requestUrl = new URL(event.request.url)
-  const isNavigationRequest = event.request.mode === 'navigate'
-  const isApiRequest = requestUrl.pathname.startsWith('/api/')
 
-  if (isApiRequest) {
+  if (requestUrl.pathname.startsWith('/api/')) {
+    return
+  }
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          const clone = networkResponse.clone()
+          caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', clone))
+          return networkResponse
+        })
+        .catch(async () => (await caches.match('/index.html')) || caches.match('/')),
+    )
     return
   }
 
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200) {
-          return networkResponse
-        }
-
-        const responseClone = networkResponse.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone))
-        return networkResponse
-      })
-      .catch(() => {
-        if (isNavigationRequest) {
-          return caches.match('/')
-        }
-
-        return caches.match(event.request)
-      })
-      .then((response) => {
-        if (response) {
-          return response
-        }
-
-        return caches.match(event.request)
-      })
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse
-        }
-
-        return fetch(event.request)
+    caches.match(event.request).then((cachedResponse) => {
+      const networkFetch = fetch(event.request)
         .then((networkResponse) => {
-          if (!networkResponse || networkResponse.status !== 200) {
-            return networkResponse
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone()
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
           }
 
-          const responseClone = networkResponse.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone))
           return networkResponse
         })
-      }),
+        .catch(() => cachedResponse)
+
+      return cachedResponse || networkFetch
+    }),
   )
 })

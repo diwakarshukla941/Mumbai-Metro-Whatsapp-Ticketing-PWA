@@ -2,9 +2,11 @@
   "name": "mumbai-metro-one-pwa",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "dev": "node tools/dev.js",
     "build": "npm run build --prefix frontend",
-    "start": "npm start --prefix backend"
+    "start": "npm start --prefix backend",
+    "perf": "node tools/perf-smoke.js"
   }
 }

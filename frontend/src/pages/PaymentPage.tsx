@@ -5,29 +5,11 @@ import { LoadingScreen, StateMessage } from '../components/States'
 import type { BookingDetail } from '../types'
 import { formatCurrency, formatJourneyType } from '../utils'
 
-type PaymentOutcome = 'success' | 'pending' | 'failed'
-
-const outcomeOptions: Array<{
-  id: PaymentOutcome
-  title: string
-  detail: string
-}> = [
-  {
-    id: 'success',
-    title: 'Success',
-    detail: 'Fire the confetti and issue the ticket.',
-  },
-  {
-    id: 'pending',
-    title: 'Pending',
-    detail: 'Pause the ride and show a waiting state.',
-  },
-  {
-    id: 'failed',
-    title: 'Failed',
-    detail: 'Kick to failure and try again from booking.',
-  },
-]
+const paymentMethods = [
+  { id: 'upi', label: 'UPI', detail: 'Instant mobile payment' },
+  { id: 'card', label: 'Card', detail: 'Credit or debit card' },
+  { id: 'netbanking', label: 'Net Banking', detail: 'Direct bank payment' },
+] as const
 
 export function PaymentPage() {
   const navigate = useNavigate()
@@ -35,7 +17,7 @@ export function PaymentPage() {
   const [detail, setDetail] = useState<BookingDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
-  const [selectedOutcome, setSelectedOutcome] = useState<PaymentOutcome>('success')
+  const [selectedMethod, setSelectedMethod] = useState<(typeof paymentMethods)[number]['id']>('upi')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -52,9 +34,8 @@ export function PaymentPage() {
         }
 
         if (result.ticket) {
-          const existingTicket = result.ticket
           startTransition(() => {
-            navigate(`/ticket/${existingTicket.id}`)
+            navigate(`/ticket/${result.ticket!.id}`)
           })
           return
         }
@@ -77,22 +58,8 @@ export function PaymentPage() {
     }
   }, [bookingId, navigate])
 
-  const onSimulatePayment = async () => {
+  const onConfirmPayment = async () => {
     if (!detail) {
-      return
-    }
-
-    if (selectedOutcome === 'pending') {
-      startTransition(() => {
-        navigate(`/pending/${detail.booking.id}`)
-      })
-      return
-    }
-
-    if (selectedOutcome === 'failed') {
-      startTransition(() => {
-        navigate(`/failed/${detail.booking.id}`)
-      })
       return
     }
 
@@ -101,7 +68,7 @@ export function PaymentPage() {
 
     try {
       const paymentIntent = await createPaymentIntent(detail.booking.id)
-      const result = await confirmPayment(paymentIntent.payment.id, 'upi')
+      const result = await confirmPayment(paymentIntent.payment.id, selectedMethod)
       startTransition(() => {
         navigate(`/ticket/${result.ticket.id}`)
       })
@@ -113,7 +80,7 @@ export function PaymentPage() {
   }
 
   if (loading) {
-    return <LoadingScreen label="Loading dummy payment gateway..." />
+    return <LoadingScreen label="Loading payment..." />
   }
 
   if (!detail) {
@@ -121,56 +88,57 @@ export function PaymentPage() {
   }
 
   return (
-    <section className="screen-card payment-screen">
-      <div className="screen-copy">
-        <p className="screen-kicker">Dummy gateway</p>
-        <h1>Choose the ending.</h1>
-        <p className="screen-text">
-          This gateway is intentionally playful. Pick a result and watch the flow respond.
-        </p>
+    <section className="surface-card page-card simple-page premium-page">
+      <div className="page-heading">
+        <span className="page-kicker">Step 3</span>
+        <h2>Payment</h2>
+        <p>Confirm the amount and choose a payment method.</p>
       </div>
 
-      <div className="summary-panel compact">
-        <strong>{detail.origin.name} to {detail.destination.name}</strong>
+      <div className="payment-hero">
+        <div>
+          <span className="field-label">Amount to pay</span>
+          <strong>{formatCurrency(detail.booking.fare.totalFare)}</strong>
+        </div>
         <p>
-          {formatJourneyType(detail.booking.journeyType)} / {detail.booking.quantity} people /{' '}
-          {formatCurrency(detail.booking.fare.totalFare)}
+          {detail.origin.name} to {detail.destination.name} /{' '}
+          {formatJourneyType(detail.booking.journeyType)} / {detail.booking.quantity} person(s)
         </p>
       </div>
 
-      <div className="outcome-list">
-        {outcomeOptions.map((outcome) => (
+      <div className="choice-grid payment-method-grid" role="radiogroup" aria-label="Payment method">
+        {paymentMethods.map((method) => (
           <button
-            key={outcome.id}
+            key={method.id}
             type="button"
-            className={`outcome-card ${selectedOutcome === outcome.id ? 'active' : ''}`}
-            onClick={() => setSelectedOutcome(outcome.id)}
+            role="radio"
+            aria-checked={selectedMethod === method.id}
+            className={`choice-card premium-choice-card ${
+              selectedMethod === method.id ? 'active' : ''
+            }`}
+            onClick={() => setSelectedMethod(method.id)}
           >
-            <strong>{outcome.title}</strong>
-            <span>{outcome.detail}</span>
+            <strong>{method.label}</strong>
+            <span>{method.detail}</span>
           </button>
         ))}
       </div>
 
       {error && <p className="error-text">{error}</p>}
 
-      <button
-        className="primary-button"
-        type="button"
-        onClick={onSimulatePayment}
-        disabled={processing}
-      >
-        {processing ? 'Processing...' : `Simulate ${selectedOutcome}`}
-      </button>
-
-      {processing && (
-        <div className="payment-burst" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </div>
-      )}
+      <div className="action-row dual-actions">
+        <button className="secondary-button premium-secondary-button" type="button" onClick={() => navigate(-1)}>
+          Back
+        </button>
+        <button
+          className="primary-button premium-primary-button"
+          type="button"
+          onClick={onConfirmPayment}
+          disabled={processing}
+        >
+          {processing ? 'Processing payment...' : 'Pay now'}
+        </button>
+      </div>
     </section>
   )
 }

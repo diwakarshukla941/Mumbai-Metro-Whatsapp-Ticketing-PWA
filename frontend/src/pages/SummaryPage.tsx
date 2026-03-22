@@ -1,12 +1,11 @@
 import { startTransition, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { fetchBooking } from '../api'
-import { StationTrail } from '../components/StationTrail'
 import { LoadingScreen, StateMessage } from '../components/States'
-import type { BookingDetail, MetaResponse } from '../types'
+import type { BookingDetail } from '../types'
 import { formatCurrency, formatJourneyType } from '../utils'
 
-export function SummaryPage({ meta }: { meta: MetaResponse }) {
+export function SummaryPage() {
   const navigate = useNavigate()
   const { bookingId } = useParams()
   const [detail, setDetail] = useState<BookingDetail | null>(null)
@@ -43,7 +42,7 @@ export function SummaryPage({ meta }: { meta: MetaResponse }) {
   }, [bookingId])
 
   if (loading) {
-    return <LoadingScreen label="Loading journey summary..." />
+    return <LoadingScreen label="Loading summary..." />
   }
 
   if (!detail) {
@@ -51,60 +50,50 @@ export function SummaryPage({ meta }: { meta: MetaResponse }) {
   }
 
   return (
-    <section className="screen-card summary-screen">
-      <div className="screen-copy">
-        <p className="screen-kicker">Trip remix</p>
-        <h1>Looks good. Lock it in.</h1>
+    <section className="surface-card page-card simple-page premium-page">
+      <div className="page-heading">
+        <span className="page-kicker">Step 2</span>
+        <h2>Journey summary</h2>
+        <p>Review your trip details before moving to payment.</p>
       </div>
 
-      <div className="route-card">
-        <span>{detail.origin.name}</span>
-        <div className="route-line" />
-        <span>{detail.destination.name}</span>
+      <div className="route-hero">
+        <div className="route-station">
+          <span className="field-label">From</span>
+          <strong>{detail.origin.name}</strong>
+        </div>
+        <div className="route-connector" aria-hidden="true" />
+        <div className="route-station">
+          <span className="field-label">To</span>
+          <strong>{detail.destination.name}</strong>
+        </div>
       </div>
 
-      <StationTrail
-        stations={meta.stations}
-        fromStationId={detail.booking.fromStationId}
-        toStationId={detail.booking.toStationId}
-      />
-
-      <dl className="detail-grid">
-        <div>
-          <dt>Journey</dt>
-          <dd>{formatJourneyType(detail.booking.journeyType)}</dd>
+      <div className="summary-card premium-summary-card">
+        <div className="summary-row">
+          <span>Journey type</span>
+          <strong>{formatJourneyType(detail.booking.journeyType)}</strong>
         </div>
-        <div>
-          <dt>People</dt>
-          <dd>{detail.booking.quantity}</dd>
+        <div className="summary-row">
+          <span>Persons</span>
+          <strong>{detail.booking.quantity}</strong>
         </div>
-        <div>
-          <dt>Distance</dt>
-          <dd>{detail.booking.fare.distanceKm} km</dd>
-        </div>
-        <div>
-          <dt>Fare</dt>
-          <dd>{formatCurrency(detail.booking.fare.totalFare)}</dd>
-        </div>
-      </dl>
-
-      <div className="summary-panel">
-        <div>
-          <p className="screen-kicker">Trip total</p>
+        <div className="summary-row">
+          <span>Total fare</span>
           <strong>{formatCurrency(detail.booking.fare.totalFare)}</strong>
         </div>
-        <p>
-          {detail.booking.fare.journeyTypeLabel} with {detail.booking.quantity} passenger
-          {detail.booking.quantity > 1 ? 's' : ''}.
-        </p>
+        <div className="summary-row">
+          <span>Estimated travel time</span>
+          <strong>{detail.booking.fare.estimatedTravelMinutes} min</strong>
+        </div>
       </div>
 
-      <div className="screen-actions">
-        <Link className="secondary-button" to="/">
+      <div className="action-row dual-actions">
+        <Link className="secondary-button premium-secondary-button" to="/">
           Edit booking
         </Link>
         <button
-          className="primary-button"
+          className="primary-button premium-primary-button"
           type="button"
           onClick={() =>
             startTransition(() => {
@@ -112,7 +101,7 @@ export function SummaryPage({ meta }: { meta: MetaResponse }) {
             })
           }
         >
-          Pay now
+          Proceed to payment
         </button>
       </div>
     </section>

@@ -40,24 +40,39 @@ export function FailedPage() {
   }, [bookingId])
 
   if (loading) {
-    return <LoadingScreen label="Loading failure state..." />
+    return <LoadingScreen label="Loading payment failure state..." />
   }
 
   if (!detail) {
-    return <StateMessage title="Failure state unavailable" body={error ?? 'Booking could not be loaded.'} />
+    return (
+      <StateMessage title="Failure state unavailable" body={error ?? 'Booking could not be loaded.'} />
+    )
   }
 
   return (
-    <section className="screen-card status-screen status-failed">
-      <p className="screen-kicker">Payment failed</p>
-      <h1>Your payment did not go through.</h1>
-      <p className="screen-text">
-        The simulated gateway failed the transaction for {detail.origin.name} to{' '}
-        {detail.destination.name}.
-      </p>
-      <div className="screen-actions">
+    <section className="surface-card page-card">
+      <div className="section-intro">
+        <p className="eyebrow">Payment failed</p>
+        <h2>The transaction did not complete.</h2>
+        <p>
+          No ticket has been issued for this booking. Start again when the passenger is ready.
+        </p>
+      </div>
+
+      <div className="info-grid">
+        <article className="info-card">
+          <p className="eyebrow">Affected journey</p>
+          <ul className="info-list">
+            <li>{detail.origin.name}</li>
+            <li>{detail.destination.name}</li>
+            <li>{detail.booking.fare.routeLabel}</li>
+          </ul>
+        </article>
+      </div>
+
+      <div className="action-row">
         <Link className="primary-button" to="/">
-          Try again
+          Try a new booking
         </Link>
       </div>
     </section>

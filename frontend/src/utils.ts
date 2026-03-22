@@ -16,10 +16,29 @@ export function formatDateLabel(date: string) {
   }).format(new Date(`${date}T00:00:00`))
 }
 
+export function formatDateTimeLabel(dateTime: string) {
+  return new Intl.DateTimeFormat('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(dateTime))
+}
+
 export function todayAsInputValue() {
-  return new Date().toISOString().slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
 export function formatJourneyType(journeyType: JourneyType) {
   return journeyType === 'rjt' ? 'RJT' : 'SJT'
+}
+
+export function formatTravelerLabel(quantity: number) {
+  return `${quantity} passenger${quantity > 1 ? 's' : ''}`
 }

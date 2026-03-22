@@ -3,11 +3,17 @@ import cors from 'cors'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import QRCode from 'qrcode'
 import { stations, stationMap } from './src/data/stations.js'
 import { calculateFare, getStationOrThrow } from './src/lib/fare.js'
-import { readStore, writeStore } from './src/lib/storage.js'
-import { buildTicket } from './src/lib/ticket.js'
+import {
+  flushStore,
+  getStoreRuntime,
+  insertBooking,
+  insertPayment,
+  insertTicket,
+  markStoreDirty,
+} from './src/lib/storage.js'
+import { attachTicketQr, buildTicket } from './src/lib/ticket.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -23,10 +29,10 @@ const lineMeta = {
   whatsappTicketingNumber: '+91 96700 08889',
   fareBands: ['Rs 10', 'Rs 20', 'Rs 30', 'Rs 40'],
   officialSteps: [
-    'Send "Hi" on WhatsApp to the official Metro One ticketing number.',
-    'Pick origin, destination, and ticket count for Line 1.',
-    'Complete payment inside the guided flow.',
-    'Receive the QR ticket and use it at the AFC gate.',
+    'Select the origin and destination station on Line 1.',
+    'Choose the service date, journey type, and passenger count.',
+    'Authorize payment using the selected method.',
+    'Receive a QR ticket and show it at the AFC gate.',
   ],
   sources: [
     {
@@ -44,49 +50,96 @@ const lineMeta = {
   ],
 }
 
-async function ensureScannableTicket(ticket, baseUrl) {
-  const scanUrl = `${baseUrl}/scan/${ticket.id}`
+const metaPayload = {
+  lineMeta,
+  stations,
+}
 
-  if (ticket.scanUrl === scanUrl && ticket.qrPayload === scanUrl) {
-    return {
-      ...ticket,
-      scanUrl,
-      qrPayload: scanUrl,
-    }
-  }
-
-  const qrCodeDataUrl = await QRCode.toDataURL(scanUrl, {
-    margin: 1,
-    width: 320,
-    color: {
-      dark: '#0d1013',
-      light: '#f7f2e8',
-    },
+function todayInIst() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   })
 
-  return {
-    ...ticket,
-    scanUrl,
-    qrPayload: scanUrl,
-    qrCodeDataUrl,
+  return formatter.format(new Date())
+}
+
+function noStore(response) {
+  response.setHeader('Cache-Control', 'no-store')
+}
+
+function createRateLimiter({ windowMs, maxRequests }) {
+  const hits = new Map()
+
+  return (request, response, next) => {
+    const key = request.ip ?? request.socket.remoteAddress ?? 'unknown'
+    const now = Date.now()
+    const windowStart = now - windowMs
+    const currentHits = hits.get(key)?.filter((timestamp) => timestamp > windowStart) ?? []
+
+    currentHits.push(now)
+    hits.set(key, currentHits)
+
+    if (currentHits.length > maxRequests) {
+      response.status(429).json({
+        message: 'Too many write requests. Please retry shortly.',
+      })
+      return
+    }
+
+    next()
   }
 }
 
-app.use(cors())
-app.use(express.json({ limit: '1mb' }))
+await getStoreRuntime()
 
-app.get('/api/health', (_request, response) => {
+app.disable('x-powered-by')
+app.set('trust proxy', 1)
+app.use(
+  cors({
+    origin: true,
+    methods: ['GET', 'POST'],
+  }),
+)
+app.use(express.json({ limit: '64kb' }))
+app.use((request, response, next) => {
+  response.setHeader('X-Content-Type-Options', 'nosniff')
+  response.setHeader('Referrer-Policy', 'same-origin')
+  response.setHeader('Cross-Origin-Resource-Policy', 'same-origin')
+  next()
+})
+
+const writeLimiter = createRateLimiter({
+  windowMs: 60_000,
+  maxRequests: 240,
+})
+
+app.use((request, response, next) => {
+  if (request.method !== 'POST' || request.path === '/api/fare') {
+    next()
+    return
+  }
+
+  writeLimiter(request, response, next)
+})
+
+app.get('/api/health', async (_request, response) => {
+  const store = await getStoreRuntime()
+
   response.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
+    bookings: store.data.bookings.length,
+    payments: store.data.payments.length,
+    tickets: store.data.tickets.length,
   })
 })
 
 app.get('/api/line1/meta', (_request, response) => {
-  response.json({
-    lineMeta,
-    stations,
-  })
+  response.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+  response.json(metaPayload)
 })
 
 app.post('/api/fare', (request, response) => {
@@ -116,14 +169,13 @@ app.post('/api/bookings', async (request, response) => {
       quantity,
     } = request.body ?? {}
 
-    const resolvedTravelDate = travelDate ?? new Date().toISOString().slice(0, 10)
+    const resolvedTravelDate = travelDate ?? todayInIst()
 
-    if (resolvedTravelDate < new Date().toISOString().slice(0, 10)) {
+    if (resolvedTravelDate < todayInIst()) {
       throw new Error('Travel date cannot be in the past.')
     }
 
     const ticketCount = Number(quantity)
-
     const fare = calculateFare({
       fromStationId,
       toStationId,
@@ -131,7 +183,6 @@ app.post('/api/bookings', async (request, response) => {
       quantity: ticketCount,
     })
 
-    const store = await readStore()
     const booking = {
       id: crypto.randomUUID(),
       fromStationId,
@@ -144,9 +195,9 @@ app.post('/api/bookings', async (request, response) => {
       createdAt: new Date().toISOString(),
     }
 
-    store.bookings.push(booking)
-    await writeStore(store)
+    await insertBooking(booking)
 
+    noStore(response)
     response.status(201).json({
       booking,
       origin: getStationOrThrow(fromStationId),
@@ -158,41 +209,42 @@ app.post('/api/bookings', async (request, response) => {
 })
 
 app.get('/api/bookings/:bookingId', async (request, response) => {
-  const store = await readStore()
-  const booking = store.bookings.find(
-    (candidate) => candidate.id === request.params.bookingId,
-  )
+  const store = await getStoreRuntime()
+  const booking = store.bookingsById.get(request.params.bookingId)
 
   if (!booking) {
     response.status(404).json({ message: 'Booking not found.' })
     return
   }
 
+  noStore(response)
   response.json({
     booking,
     origin: getStationOrThrow(booking.fromStationId),
     destination: getStationOrThrow(booking.toStationId),
-    payment: store.payments.find((candidate) => candidate.id === booking.paymentId) ?? null,
-    ticket: store.tickets.find((candidate) => candidate.id === booking.ticketId) ?? null,
+    payment:
+      (booking.paymentId ? store.paymentsById.get(booking.paymentId) : null) ??
+      store.paymentsByBookingId.get(booking.id) ??
+      null,
+    ticket: booking.ticketId ? store.ticketsById.get(booking.ticketId) ?? null : null,
   })
 })
 
 app.post('/api/payments/intent', async (request, response) => {
   try {
     const { bookingId } = request.body ?? {}
-    const store = await readStore()
-    const booking = store.bookings.find((candidate) => candidate.id === bookingId)
+    const store = await getStoreRuntime()
+    const booking = store.bookingsById.get(bookingId)
 
     if (!booking) {
       response.status(404).json({ message: 'Booking not found.' })
       return
     }
 
-    const existingPayment = store.payments.find(
-      (candidate) => candidate.bookingId === bookingId,
-    )
+    const existingPayment = store.paymentsByBookingId.get(bookingId)
 
     if (existingPayment) {
+      noStore(response)
       response.json({ payment: existingPayment, booking })
       return
     }
@@ -207,9 +259,10 @@ app.post('/api/payments/intent', async (request, response) => {
     }
 
     booking.paymentId = payment.id
-    store.payments.push(payment)
-    await writeStore(store)
+    await insertPayment(payment)
+    await markStoreDirty()
 
+    noStore(response)
     response.status(201).json({ payment, booking })
   } catch (error) {
     response.status(400).json({ message: error.message })
@@ -225,19 +278,15 @@ app.post('/api/payments/:paymentId/confirm', async (request, response) => {
       throw new Error('Unsupported payment method.')
     }
 
-    const store = await readStore()
-    const payment = store.payments.find(
-      (candidate) => candidate.id === request.params.paymentId,
-    )
+    const store = await getStoreRuntime()
+    const payment = store.paymentsById.get(request.params.paymentId)
 
     if (!payment) {
       response.status(404).json({ message: 'Payment not found.' })
       return
     }
 
-    const booking = store.bookings.find(
-      (candidate) => candidate.id === payment.bookingId,
-    )
+    const booking = store.bookingsById.get(payment.bookingId)
 
     if (!booking) {
       response.status(404).json({ message: 'Booking not found.' })
@@ -245,11 +294,15 @@ app.post('/api/payments/:paymentId/confirm', async (request, response) => {
     }
 
     if (payment.status === 'paid' && booking.ticketId) {
-      const existingTicket = store.tickets.find(
-        (candidate) => candidate.id === booking.ticketId,
-      )
+      const existingTicket = store.ticketsById.get(booking.ticketId)
 
-      response.json({ payment, ticket: existingTicket })
+      if (!existingTicket) {
+        response.status(409).json({ message: 'Ticket record is missing for a paid booking.' })
+        return
+      }
+
+      noStore(response)
+      response.json({ payment, ticket: await attachTicketQr(existingTicket) })
       return
     }
 
@@ -257,57 +310,74 @@ app.post('/api/payments/:paymentId/confirm', async (request, response) => {
     payment.method = selectedMethod
     payment.transactionReference = `TXN-${Date.now()}`
     payment.paidAt = new Date().toISOString()
-
     booking.status = 'ticketed'
 
     const origin = getStationOrThrow(booking.fromStationId)
     const destination = getStationOrThrow(booking.toStationId)
     const baseUrl = `${request.protocol}://${request.get('host')}`
-    const rawTicket = await buildTicket({
-      booking,
-      payment,
-      origin,
-      destination,
-      fare: booking.fare,
-      baseUrl,
-    })
-    const ticket = await ensureScannableTicket(rawTicket, baseUrl)
+    const storedTicket = await insertTicket(
+      buildTicket({
+        booking,
+        payment,
+        origin,
+        destination,
+        fare: booking.fare,
+        baseUrl,
+      }),
+    )
 
-    booking.ticketId = ticket.id
-    store.tickets.push(ticket)
-    await writeStore(store)
+    booking.ticketId = storedTicket.id
+    await markStoreDirty()
 
-    response.json({ payment, ticket })
+    noStore(response)
+    response.json({ payment, ticket: await attachTicketQr(storedTicket) })
   } catch (error) {
     response.status(400).json({ message: error.message })
   }
 })
 
 app.get('/api/tickets/:ticketId', async (request, response) => {
-  const store = await readStore()
-  const ticket = store.tickets.find((candidate) => candidate.id === request.params.ticketId)
+  const store = await getStoreRuntime()
+  const ticket = store.ticketsById.get(request.params.ticketId)
 
   if (!ticket) {
     response.status(404).json({ message: 'Ticket not found.' })
     return
   }
 
-  const booking = store.bookings.find((candidate) => candidate.id === ticket.bookingId)
-  const payment = store.payments.find((candidate) => candidate.id === ticket.paymentId)
+  const booking = store.bookingsById.get(ticket.bookingId)
+  const payment = store.paymentsById.get(ticket.paymentId)
 
+  if (!booking || !payment) {
+    response.status(409).json({ message: 'Ticket references incomplete booking or payment data.' })
+    return
+  }
+
+  noStore(response)
   response.json({
-    ticket,
+    ticket: await attachTicketQr(ticket),
     booking,
     payment,
-    origin: booking ? stationMap.get(booking.fromStationId) : null,
-    destination: booking ? stationMap.get(booking.toStationId) : null,
+    origin: stationMap.get(booking.fromStationId),
+    destination: stationMap.get(booking.toStationId),
   })
 })
 
 if (fs.existsSync(frontendDistPath)) {
-  app.use(express.static(frontendDistPath))
+  app.use(
+    express.static(frontendDistPath, {
+      maxAge: '5m',
+    }),
+  )
   app.get(/^(?!\/api).*/, (_request, response) => {
     response.sendFile(path.join(frontendDistPath, 'index.html'))
+  })
+}
+
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, async () => {
+    await flushStore()
+    process.exit(0)
   })
 }
 
