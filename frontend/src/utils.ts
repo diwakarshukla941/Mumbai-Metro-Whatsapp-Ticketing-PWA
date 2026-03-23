@@ -1,5 +1,7 @@
 import type { JourneyType } from './types'
 
+export type TicketWindowStatus = 'upcoming' | 'valid' | 'expired'
+
 export function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -41,4 +43,24 @@ export function formatJourneyType(journeyType: JourneyType) {
 
 export function formatTravelerLabel(quantity: number) {
   return `${quantity} passenger${quantity > 1 ? 's' : ''}`
+}
+
+export function getTicketWindowStatus(
+  validFrom: string,
+  validUntil: string,
+  now = new Date(),
+): TicketWindowStatus {
+  const fromTime = new Date(validFrom).getTime()
+  const untilTime = new Date(validUntil).getTime()
+  const currentTime = now.getTime()
+
+  if (currentTime < fromTime) {
+    return 'upcoming'
+  }
+
+  if (currentTime > untilTime) {
+    return 'expired'
+  }
+
+  return 'valid'
 }

@@ -12,12 +12,16 @@ import { TicketPage } from './pages/TicketPage'
 import type { MetaResponse } from './types'
 
 function getStepForPath(pathname: string) {
-  if (pathname.startsWith('/payment') || pathname.startsWith('/pending') || pathname.startsWith('/failed')) {
+  if (pathname.startsWith('/summary')) {
     return 2
   }
 
-  if (pathname.startsWith('/ticket') || pathname.startsWith('/scan')) {
+  if (pathname.startsWith('/payment') || pathname.startsWith('/pending') || pathname.startsWith('/failed')) {
     return 3
+  }
+
+  if (pathname.startsWith('/ticket') || pathname.startsWith('/scan')) {
+    return 4
   }
 
   return 1
@@ -26,7 +30,7 @@ function getStepForPath(pathname: string) {
 function AppShell({ meta }: { meta: MetaResponse }) {
   const location = useLocation()
   const currentStep = getStepForPath(location.pathname)
-  const steps = ['Book', 'Pay', 'Ticket']
+  const steps = ['Book', 'Summary', 'Pay', 'Ticket']
 
   return (
     <div className="app-shell">

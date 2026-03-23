@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { confirmPayment, createPaymentIntent, fetchBooking } from '../api'
+import { createPaymentIntent, fetchBooking } from '../api'
 import { LoadingScreen, StateMessage } from '../components/States'
 import type { BookingDetail } from '../types'
 import { formatCurrency, formatJourneyType } from '../utils'
@@ -19,6 +19,7 @@ export function PaymentPage() {
   const [processing, setProcessing] = useState(false)
   const [selectedMethod, setSelectedMethod] = useState<(typeof paymentMethods)[number]['id']>('upi')
   const [error, setError] = useState<string | null>(null)
+  const selectedMethodMeta = paymentMethods.find((method) => method.id === selectedMethod) ?? paymentMethods[0]
 
   useEffect(() => {
     if (!bookingId) {
@@ -34,8 +35,9 @@ export function PaymentPage() {
         }
 
         if (result.ticket) {
+          const existingTicket = result.ticket
           startTransition(() => {
-            navigate(`/ticket/${result.ticket!.id}`)
+            navigate(`/ticket/${existingTicket.id}`, { replace: true })
           })
           return
         }
@@ -68,9 +70,12 @@ export function PaymentPage() {
 
     try {
       const paymentIntent = await createPaymentIntent(detail.booking.id)
-      const result = await confirmPayment(paymentIntent.payment.id, selectedMethod)
       startTransition(() => {
-        navigate(`/ticket/${result.ticket.id}`)
+        const searchParams = new URLSearchParams({
+          paymentId: paymentIntent.payment.id,
+          method: selectedMethod,
+        })
+        navigate(`/pending/${detail.booking.id}?${searchParams.toString()}`)
       })
     } catch (requestError) {
       setError((requestError as Error).message)
@@ -91,13 +96,13 @@ export function PaymentPage() {
     <section className="surface-card page-card simple-page premium-page">
       <div className="page-heading">
         <span className="page-kicker">Step 3</span>
-        <h2>Payment</h2>
-        <p>Confirm the amount and choose a payment method.</p>
+        <h2>Checkout</h2>
+        <p>Choose a payment method and continue to the secure gateway handoff.</p>
       </div>
 
       <div className="payment-hero">
         <div>
-          <span className="field-label">Amount to pay</span>
+          <span className="field-label">Total payable</span>
           <strong>{formatCurrency(detail.booking.fare.totalFare)}</strong>
         </div>
         <p>
@@ -124,6 +129,17 @@ export function PaymentPage() {
         ))}
       </div>
 
+      <div className="surface-subcard payment-trust-card">
+        <div>
+          <span className="field-label">Gateway handoff</span>
+          <strong>{selectedMethodMeta.label} selected</strong>
+        </div>
+        <p>
+          Continue through the payment redirect state before the QR ticket is issued, similar to the live
+          WhatsApp-style flow.
+        </p>
+      </div>
+
       {error && <p className="error-text">{error}</p>}
 
       <div className="action-row dual-actions">
@@ -136,7 +152,7 @@ export function PaymentPage() {
           onClick={onConfirmPayment}
           disabled={processing}
         >
-          {processing ? 'Processing payment...' : 'Pay now'}
+          {processing ? 'Preparing gateway...' : 'Continue to gateway'}
         </button>
       </div>
     </section>

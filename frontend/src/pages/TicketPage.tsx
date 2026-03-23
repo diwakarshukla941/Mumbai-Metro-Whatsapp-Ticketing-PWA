@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { fetchTicket } from '../api'
 import { LoadingScreen, StateMessage } from '../components/States'
 import type { TicketDetail } from '../types'
-import { formatCurrency, formatJourneyType } from '../utils'
+import { formatCurrency, formatDateTimeLabel, formatJourneyType, getTicketWindowStatus } from '../utils'
 
 export function TicketPage() {
   const { ticketId } = useParams()
@@ -49,20 +49,41 @@ export function TicketPage() {
   }
 
   const scanHref = detail.ticket.scanUrl || `/scan/${detail.ticket.id}`
+  const ticketStatus = getTicketWindowStatus(detail.ticket.validFrom, detail.ticket.validUntil)
+  const statusMeta = {
+    valid: {
+      label: 'Valid today',
+      note: `Ready for gate scan until ${formatDateTimeLabel(detail.ticket.validUntil)}.`,
+    },
+    upcoming: {
+      label: 'Upcoming',
+      note: `This ticket activates at ${formatDateTimeLabel(detail.ticket.validFrom)}.`,
+    },
+    expired: {
+      label: 'Expired',
+      note: `This ticket expired at ${formatDateTimeLabel(detail.ticket.validUntil)}.`,
+    },
+  }[ticketStatus]
 
   return (
     <section className="surface-card page-card simple-page premium-page">
       <div className="page-heading">
-        <span className="page-kicker">Ticket ready</span>
+        <span className="page-kicker">Step 4</span>
         <h2>Your ticket</h2>
-        <p>Keep this QR ready for scanning at the gate.</p>
+        <p>Keep this QR ready for scanning at the gate and use the status banner for a fast validity check.</p>
       </div>
 
       <div className="ticket-card luxury-ticket">
         <div className="ticket-ribbon" aria-hidden="true" />
         <div className="ticket-topbar">
           <span>{detail.ticket.ticketNumber}</span>
-          <span>Paid</span>
+          <span>{statusMeta.label}</span>
+        </div>
+
+        <div className={`validation-banner ticket-status-banner is-${ticketStatus}`}>
+          <span>Status</span>
+          <strong>{statusMeta.label}</strong>
+          <span>{statusMeta.note}</span>
         </div>
 
         <div className="route-hero ticket-route-hero">
@@ -103,9 +124,34 @@ export function TicketPage() {
         </div>
       </div>
 
+      <div className="info-grid">
+        <article className="info-card emphasis-card">
+          <p className="eyebrow">Validity window</p>
+          <ul className="info-list">
+            <li>From: {formatDateTimeLabel(detail.ticket.validFrom)}</li>
+            <li>Until: {formatDateTimeLabel(detail.ticket.validUntil)}</li>
+            <li>{detail.ticket.validityNote}</li>
+          </ul>
+        </article>
+
+        <article className="info-card ticket-support-card">
+          <p className="eyebrow">Need help?</p>
+          <strong>WhatsApp assist</strong>
+          <p>Open a prefilled support thread with the ticket number, route, and journey details.</p>
+          <a
+            className="secondary-button premium-secondary-button support-link-button"
+            href={detail.ticket.whatsappAssistUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open WhatsApp help
+          </a>
+        </article>
+      </div>
+
       <div className="action-row dual-actions">
         <a className="secondary-button premium-secondary-button" href={scanHref} target="_blank" rel="noreferrer">
-          Open scan page
+          {ticketStatus === 'expired' ? 'View scan record' : 'Open scan page'}
         </a>
         <Link className="primary-button premium-primary-button" to="/">
           Book again

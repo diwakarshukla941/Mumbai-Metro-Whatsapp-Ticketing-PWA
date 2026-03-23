@@ -8,6 +8,7 @@ import {
   formatDateLabel,
   formatDateTimeLabel,
   formatJourneyType,
+  getTicketWindowStatus,
   formatTravelerLabel,
 } from '../utils'
 
@@ -56,20 +57,37 @@ export function ScanPage() {
     )
   }
 
+  const ticketStatus = getTicketWindowStatus(detail.ticket.validFrom, detail.ticket.validUntil)
+  const statusMeta = {
+    valid: {
+      heading: 'Ticket status: valid.',
+      detail: 'Ticket is currently inside the permitted travel window.',
+      badge: 'Valid',
+    },
+    upcoming: {
+      heading: 'Ticket status: not active yet.',
+      detail: 'Do not allow entry before the validity window opens.',
+      badge: 'Upcoming',
+    },
+    expired: {
+      heading: 'Ticket status: expired.',
+      detail: 'The validity window has ended and the ticket should not be accepted.',
+      badge: 'Expired',
+    },
+  }[ticketStatus]
+
   return (
     <section className="surface-card page-card premium-page">
       <div className="section-intro">
         <p className="eyebrow">Gate validation</p>
-        <h2>Ticket status: valid for the selected service day.</h2>
-        <p>
-          This is the compact operator view for verification at the gate.
-        </p>
+        <h2>{statusMeta.heading}</h2>
+        <p>{statusMeta.detail}</p>
       </div>
 
-      <div className="validation-banner">
-        <strong>{detail.ticket.ticketNumber}</strong>
+      <div className={`validation-banner ticket-status-banner is-${ticketStatus}`}>
+        <strong>{statusMeta.badge}</strong>
         <span>{`${detail.origin.code} -> ${detail.destination.code}`}</span>
-        <span>{formatDateTimeLabel(new Date().toISOString())}</span>
+        <span>Checked {formatDateTimeLabel(new Date().toISOString())}</span>
       </div>
 
       <dl className="detail-grid">
